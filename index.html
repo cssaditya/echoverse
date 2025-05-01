@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anime EchoVerse</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="ui">
+        <div class="audio-section">
+            <input type="file" id="audioFile" accept="audio/*" class="audio-input">
+            <div id="audioContent" class="hidden">
+                <div class="now-playing">
+                    <div class="track-info">
+                        <div id="trackName" class="track-name">No track selected</div>
+                        <div id="artistName" class="artist-name">Upload an audio file to begin</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="instruction">Drag or tap anywhere →</div>
+        <div class="credits">Made with ❤️ for anime lovers</div>
+    </div>
+    <canvas id="musicCanvas"></canvas>
+    <script src="audio.js"></script>
+    <script src="particles.js"></script>
+    <script src="main.js"></script>
+</body>
+</html> 

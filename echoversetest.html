@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anime EchoVerse</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            touch-action: none;
+            font-family: 'Arial', sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        .ui {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.7);
+            pointer-events: none;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            color: white;
+            pointer-events: auto;
+            z-index: 100;
+        }
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        input[type="range"] {
+            flex-grow: 1;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .file-label {
+            background: rgba(158, 186, 255, 0.3);
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .file-label:hover {
+            background: rgba(158, 186, 255, 0.5);
+        }
+        .bpm-display {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 5px;
+            color: white;
+            font-size: 16px;
+        }
+        .effect-toggle {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .effect-toggle input {
+            margin-right: 5px;
+        }
+        .effects-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        .mode-switch {
+            margin-left: auto;
+            background: rgba(255, 155, 210, 0.3);
+        }
+        .mode-switch.active {
+            background: rgba(255, 155, 210, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <div class="ui">Drag or tap anywhere →</div>
+    <canvas id="musicCanvas"></canvas>
+    
+    <div class="bpm-display">BPM: <span id="bpmValue">0</span></div>
+    
+    <div class="controls">
+        <div class="control-row">
+            <label for="audioFile" class="file-label">Choose Music</label>
+            <input type="file" id="audioFile" accept="audio/*">
+            <span id="fileName">No file selected</span>
+            <button id="modeSwitchBtn" class="mode-switch">Default Sounds</button>
+        </div>
+        <div class="control-row">
+            <button id="playPauseBtn">Play</button>
+            <input type="range" id="volumeSlider" min="0" max="100" value="70">
+            <span id="volumeValue">70%</span>
+        </div>
+        <div id="effectsContainer">
+            <div class="control-row">
+                <span>Audio Effects:</span>
+            </div>
+            <div class="effects-panel">
+                <div class="effect-toggle">
+                    <input type="checkbox" id="reverbEffect">
+                    <label for="reverbEffect">Reverb</label>
+                </div>
+                <div class="effect-toggle">
+                    <input type="checkbox" id="delayEffect">
+                    <label for="delayEffect">Delay</label>
+                </div>
+                <div class="effect-toggle">
+                    <input type="checkbox" id="distortionEffect">
+                    <label for="distortionEffect">Distortion</label>
+                </div>
+                <div class="effect-toggle">
+                    <input type="checkbox" id="filterEffect">
+                    <label for="filterEffect">Filter</label>
+                </div>
+            </div>
+            <div class="control-row">
+                <span>Effect Intensity:</span>
+                <input type="range" id="effectIntensity" min="0" max="100" value="50">
+                <span id="intensityValue">50%</span>
+            </div>
+        </div>
+    </script>
+    </div>
+
+    <script>
+        // ======================
+        // AUDIO CONTEXT SETUP
+        // ======================
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // ======================
+        // KIRA-KIRA PARTICLE SYSTEM
+        // ======================
+        const canvas = document.getElementById('musicCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        let particles = [];
+        const colors = [
+            "#FF9ED2", // Pink
+            "#9EBAFF", // Blue
+            "#FFD700", // Gold
+            "#7BFF7B", // Mint
+            "#FF6B6B"  // Coral
+        ];
+
+        class SparkleParticle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 12 + 4;
+                this.color = color;
+                this.angle = Math.random() * Math.PI * 2;
+                this.speed = Math.random() * 2 + 1;
+                this.velocity = {
+                    x: Math.cos(this.angle) * this.speed,
+                    y: Math.sin(this.angle) * this.speed
+                };
+                this.life = 60 + Math.random() * 40;
+                this.rotation = Math.random() * Math.PI * 2;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.1;
+            }
+
+            update() {
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+                this.life--;
+                this.rotation += this.rotationSpeed;
+                
+                // Gentle physics
+                this.velocity.y += 0.03;
+                this.velocity.x *= 0.98;
+                this.velocity.y *= 0.98;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                
+                // Draw star shape
+                ctx.beginPath();
+                for (let i = 0; i < 5; i++) {
+                    ctx.lineTo(0, this.size);
+                    ctx.translate(0, this.size);
+                    ctx.rotate((Math.PI * 2) / 10);
+                    ctx.lineTo(0, -this.size * 0.5);
+                    ctx.translate(0, -this.size * 0.5);
+                    ctx.rotate((Math.PI * 2) / 10);
+                }
+                
+                ctx.closePath();
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = Math.min(1, this.life / 60);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // ======================
+        // ADVANCED AUDIO PLAYER
+        // ======================
+        let audioElement = new Audio();
+        let audioSource = null;
+        let audioGain = null;
+        let isPlaying = false;
+        let useDefaultSounds = true;
+        
+        // Audio Effects
+        let reverbNode = null;
+        let delayNode = null;
+        let distortionNode = null;
+        let filterNode = null;
+        
+        // Anime sounds setup
+        const animeNotes = [293.66, 329.63, 369.99, 440.00, 493.88]; // D4-E4-F#4-A4-B4
+        let noteIndex = 0;
+        
+        // Mode switch
+        document.getElementById('modeSwitchBtn').addEventListener('click', function() {
+            useDefaultSounds = !useDefaultSounds;
+            this.textContent = useDefaultSounds ? "Default Sounds" : "Custom Music";
+            this.classList.toggle('active', !useDefaultSounds);
+            
+            // Show/hide effects panel
+            document.getElementById('effectsContainer').style.display = 
+                useDefaultSounds ? 'none' : 'block';
+        });
+        
+        // File selection
+        document.getElementById('audioFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('fileName').textContent = file.name;
+                
+                // Revoke any existing object URL
+                if (audioElement.src) {
+                    URL.revokeObjectURL(audioElement.src);
+                }
+                
+                // Create new audio source
+                audioElement.src = URL.createObjectURL(file);
+                
+                // Switch to custom music mode
+                useDefaultSounds = false;
+                document.getElementById('modeSwitchBtn').textContent = "Custom Music";
+                document.getElementById('modeSwitchBtn').classList.add('active');
+                document.getElementById('effectsContainer').style.display = 'block';
+                
+                // Set up audio processing chain
+                setupAudioProcessingChain();
+                
+                // Play audio
+                playPauseAudio();
+            }
+        });
+        
+        // Setup audio processing chain
+        function setupAudioProcessingChain() {
+            // Disconnect any existing nodes
+            if (audioSource) {
+                audioSource.disconnect();
+            }
+            
+            // Create new source
+            audioSource = audioContext.createMediaElementSource(audioElement);
+            
+            // Create effect nodes
+            audioGain = audioContext.createGain();
+            reverbNode = audioContext.createConvolver();
+            delayNode = audioContext.createDelay(5.0);
+            distortionNode = audioContext.createWaveShaper();
+            filterNode = audioContext.createBiquadFilter();
+            
+            // Set default parameters
+            audioGain.gain.value = document.getElementById('volumeSlider').value / 100;
+            delayNode.delayTime.value = 0.3;
+            filterNode.type = "lowpass";
+            filterNode.frequency.value = 1000;
+            
+            // Create reverb impulse response
+            createReverbImpulse();
+            
+            // Create distortion curve
+            makeDistortionCurve(50);
+            
+            // Connect nodes
+            audioSource.connect(delayNode);
+            delayNode.connect(reverbNode);
+            reverbNode.connect(distortionNode);
+            distortionNode.connect(filterNode);
+            filterNode.connect(audioGain);
+            audioGain.connect(audioContext.destination);
+            
+            // Initially bypass all effects
+            toggleEffect('reverb', false);
+            toggleEffect('delay', false);
+            toggleEffect('distortion', false);
+            toggleEffect('filter', false);
+        }
+        
+        // Create reverb impulse response
+        function createReverbImpulse() {
+            const duration = 2.0;
+            const decay = 2.0;
+            const sampleRate = audioContext.sampleRate;
+            const length = sampleRate * duration;
+            const impulse = audioContext.createBuffer(2, length, sampleRate);
+            
+            for (let channel = 0; channel < 2; channel++) {
+                const impulseData = impulse.getChannelData(channel);
+                
+                for (let i = 0; i < length; i++) {
+                    const n = i / length;
+                    impulseData[i] = (Math.random() * 2 - 1) * Math.pow(1 - n, decay);
+                }
+            }
+            
+            reverbNode.buffer = impulse;
+        }
+        
+        // Create distortion curve
+        function makeDistortionCurve(amount) {
+            const samples = 44100;
+            const curve = new Float32Array(samples);
+            const deg = Math.PI / 180;
+            
+            for (let i = 0; i < samples; i++) {
+                const x = i * 2 / samples - 1;
+                curve[i] = (3 + amount) * x * 20 * deg / (Math.PI + amount * Math.abs(x));
+            }
+            
+            distortionNode.curve = curve;
+            distortionNode.oversample = '4x';
+        }
+        
+        // Toggle effect bypass
+        function toggleEffect(effect, enabled) {
+            if (!audioSource) return;
+            
+            const intensity = document.getElementById('effectIntensity').value / 100;
+            
+            switch (effect) {
+                case 'reverb':
+                    if (enabled) {
+                        createReverbImpulse();
+                    } else {
+                        // Create "null" impulse
+                        const nullImpulse = audioContext.createBuffer(2, 1, audioContext.sampleRate);
+                        reverbNode.buffer = nullImpulse;
+                    }
+                    break;
+                    
+                case 'delay':
+                    delayNode.delayTime.value = enabled ? 0.3 * intensity : 0;
+                    break;
+                    
+                case 'distortion':
+                    if (enabled) {
+                        makeDistortionCurve(400 * intensity);
+                    } else {
+                        // Create "null" curve
+                        const curve = new Float32Array(2);
+                        curve[0] = 0;
+                        curve[1] = 0;
+                        distortionNode.curve = curve;
+                    }
+                    break;
+                    
+                case 'filter':
+                    filterNode.frequency.value = enabled ? 
+                        1000 + (10000 * (1 - intensity)) : 
+                        20000; // Full range when disabled
+                    break;
+            }
+        }
+        
+        // Effect checkboxes
+        document.getElementById('reverbEffect').addEventListener('change', function(e) {
+            toggleEffect('reverb', e.target.checked);
+        });
+        
+        document.getElementById('delayEffect').addEventListener('change', function(e) {
+            toggleEffect('delay', e.target.checked);
+        });
+        
+        document.getElementById('distortionEffect').addEventListener('change', function(e) {
+            toggleEffect('distortion', e.target.checked);
+        });
+        
+        document.getElementById('filterEffect').addEventListener('change', function(e) {
+            toggleEffect('filter', e.target.checked);
+        });
+        
+        // Effect intensity
+        document.getElementById('effectIntensity').addEventListener('input', function(e) {
+            const value = e.target.value;
+            document.getElementById('intensityValue').textContent = value + '%';
+            
+            // Update all active effects
+            const effects = ['reverb', 'delay', 'distortion', 'filter'];
+            
+            effects.forEach(effect => {
+                const checkbox = document.getElementById(effect + 'Effect');
+                if (checkbox && checkbox.checked) {
+                    toggleEffect(effect, true);
+                }
+            });
+        });
+        
+        // Play/Pause
+        function playPauseAudio() {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            const playPauseBtn = document.getElementById('playPauseBtn');
+            
+            if (!isPlaying && audioElement.src) {
+                audioElement.play();
+                playPauseBtn.textContent = 'Pause';
+                isPlaying = true;
+            } else if (isPlaying) {
+                audioElement.pause();
+                playPauseBtn.textContent = 'Play';
+                isPlaying = false;
+            }
+        }
+        
+        document.getElementById('playPauseBtn').addEventListener('click', playPauseAudio);
+        
+        // Volume control
+        document.getElementById('volumeSlider').addEventListener('input', function(e) {
+            const value = e.target.value;
+            document.getElementById('volumeValue').textContent = value + '%';
+            
+            if (audioGain) {
+                audioGain.gain.value = value / 100;
+            }
+        });
+        
+        // Mikutap-inspired sound generator
+        function playAnimeSound(note) {
+            const now = audioContext.currentTime;
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            
+            // Cute synth settings
+            osc.type = ["sine", "triangle", "sawtooth"][Math.floor(Math.random() * 3)];
+            osc.frequency.value = note;
+            
+            // Punchy but short envelope
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+            
+            // Add sparkle with high-pass filter
+            const filter = audioContext.createBiquadFilter();
+            filter.type = "highpass";
+            filter.frequency.value = 800;
+            
+            osc.connect(filter).connect(gain).connect(audioContext.destination);
+            osc.start(now);
+            osc.stop(now + 0.5);
+        }
+
+        // ======================
+        // BPM CALCULATION
+        // ======================
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let lastMouseTime = Date.now();
+        let speedSamples = [];
+        let currentBPM = 0;
+        const bpmDisplay = document.getElementById('bpmValue');
+        
+        function calculateBPM(x, y) {
+            const now = Date.now();
+            const timeDiff = now - lastMouseTime;
+            
+            if (timeDiff > 0) {
+                // Calculate distance moved
+                const dx = x - lastMouseX;
+                const dy = y - lastMouseY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Calculate speed in pixels per second
+                const speed = distance / (timeDiff / 1000);
+                
+                // Add to sample buffer
+                speedSamples.push(speed);
+                
+                // Limit sample buffer size
+                if (speedSamples.length > 10) {
+                    speedSamples.shift();
+                }
+                
+                // Calculate average speed
+                const avgSpeed = speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length;
+                
+                // Map speed to BPM (adjust these values as needed)
+                currentBPM = Math.min(300, Math.max(60, Math.round(avgSpeed * 0.5)));
+                bpmDisplay.textContent = currentBPM;
+                
+                // If custom music is active, adjust playback rate based on BPM
+                if (!useDefaultSounds && audioElement.src) {
+                    // Map BPM to playback rate range (0.5 - 2.0)
+                    const rate = 0.5 + (currentBPM - 60) / (300 - 60) * 1.5;
+                    audioElement.playbackRate = rate;
+                }
+            }
+            
+            lastMouseX = x;
+            lastMouseY = y;
+            lastMouseTime = now;
+        }
+
+        // ======================
+        // DRAG & TAP HANDLING
+        // ======================
+        let isDragging = false;
+        let lastSoundTime = 0;
+
+        function triggerEffect(x, y) {
+            const now = Date.now();
+            
+            // Calculate BPM
+            calculateBPM(x, y);
+            
+            // Play sound (throttled during drag) only if using default sounds
+            if (useDefaultSounds && (!isDragging || now - lastSoundTime > 100)) {
+                playAnimeSound(animeNotes[noteIndex]);
+                noteIndex = (noteIndex + 1) % animeNotes.length;
+                lastSoundTime = now;
+            }
+            
+            // Create particles
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            const count = isDragging ? 3 : 8;
+            
+            for (let i = 0; i < count; i++) {
+                particles.push(new SparkleParticle(x, y, color));
+            }
+        }
+
+        // Mouse events
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            triggerEffect(e.clientX, e.clientY);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) triggerEffect(e.clientX, e.clientY);
+        });
+
+        canvas.addEventListener('mouseup', () => isDragging = false);
+
+        // Touch events
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            isDragging = true;
+            const touch = e.touches[0];
+            triggerEffect(touch.clientX, touch.clientY);
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (isDragging) {
+                const touch = e.touches[0];
+                triggerEffect(touch.clientX, touch.clientY);
+            }
+        });
+
+        canvas.addEventListener('touchend', () => isDragging = false);
+
+        // ======================
+        // ANIMATION LOOP
+        // ======================
+        function animate() {
+            // Clear with fade effect
+            ctx.fillStyle = 'rgba(0, 0, 10, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Update and draw particles
+            particles.forEach((particle, index) => {
+                particle.update();
+                particle.draw();
+                
+                if (particle.life <= 0) {
+                    particles.splice(index, 1);
+                }
+            });
+            
+            requestAnimationFrame(animate);
+        }
+
+        // Initialize
+        document.addEventListener('click', () => {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        }, { once: true });
+
+        // Hide effects panel initially
+        document.getElementById('effectsContainer').style.display = 'none';
+
+        animate();
+        
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
